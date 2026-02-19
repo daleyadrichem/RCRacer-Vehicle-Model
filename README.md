@@ -1,289 +1,212 @@
-# 🏎️ RC Racer Vehicle Model
+# RC Racer Vehicle Model
 
-Deterministic dynamic bicycle vehicle model with:
+Deterministic dynamic bicycle vehicle model designed for:
 
-* Throttle / brake engine model
-* Aerodynamic drag
-* Slipstream (drafting) interaction
-* Steering actuator lag
+* Reinforcement learning
+* Model-based control
+* MPC
+* System identification
+* Racing simulation research
+
+The model includes:
+
 * Full dynamic bicycle equations
-* Finite-difference linearization API
+* Engine & brake force model
+* Quadratic aerodynamic drag
+* Slipstream / drafting model
+* Steering actuator lag
+* Finite-difference linearization
 * FastAPI simulation server
-
-Project structure: 
 
 ---
 
-# 📦 Project Structure
+# Project Structure
 
 ```
 src/rc_racer_vehicle_model/
-│
-├── vehicle_model.py
-├── vehicle_state.py
-├── engine_model.py
-├── aero_model.py
-├── slipstream_model.py
-├── linearization.py
-├── vehicle_factory.py
-├── vehicle_api.py
-│
-Dockerfile
+    vehicle_model.py
+    vehicle_state.py
+    engine_model.py
+    aero_model.py
+    slipstream_model.py
+    linearization.py
+    vehicle_factory.py
+    vehicle_api.py
+
 pyproject.toml
+Dockerfile
 README.md
 ```
 
-Core modules:
-
-* Engine model 
-* Vehicle state definition 
-* Slipstream model 
-* Aerodynamic model 
-* Dynamic bicycle model 
-* REST API 
-* Vehicle presets factory 
-* Linearization utility 
-
 ---
 
-# 🚀 Installation
+# Dynamic Bicycle Model
 
-```bash
-pip install uv
-uv sync
+The vehicle uses a **full dynamic bicycle model** in body frame coordinates.
+
+State:
+
 ```
-
-Or inside Docker:
-
-```bash
-docker build -t racer-model .
-docker run -p 8000:8000 racer-model
+x, y, heading
+vx, vy, yaw_rate
+steering_angle
 ```
-
----
-
-# 🧠 Model Overview
-
-The system implements a **dynamic bicycle model** with aerodynamic and drafting effects.
-
-It is:
-
-* Deterministic
-* Continuous-time integrated via forward Euler
-* Suitable for control, RL, MPC, and simulation
-
----
-
-# 🏁 State Representation
-
-Defined in 
-
-The vehicle state is:
-
-[
-x = [x, y, \psi, v_x, v_y, r, \delta, s]
-]
-
-Where:
-
-| Variable | Meaning                     |
-| -------- | --------------------------- |
-| x, y     | Global position [m]         |
-| ψ        | Heading angle [rad]         |
-| vx       | Longitudinal velocity [m/s] |
-| vy       | Lateral velocity [m/s]      |
-| r        | Yaw rate [rad/s]            |
-| δ        | Steering angle [rad]        |
-| s        | Track progress [m]          |
-
----
-
-# 🔧 Engine Model
-
-Defined in 
-
-Simple deterministic longitudinal force:
-
-[
-F_x = T \cdot F_{drive,max} \cdot \eta - B \cdot F_{brake,max}
-]
-
-Where:
-
-* T ∈ [0,1] = throttle
-* B ∈ [0,1] = brake
-* η = drivetrain efficiency
-
-No torque curve, no traction limits.
-
----
-
-# 🌬 Aerodynamic Model
-
-Defined in 
-
-Quadratic drag:
-
-[
-F_{drag} = \frac{1}{2} \rho C_d A ; v ; |v|
-]
-
-Properties:
-
-* Signed force (always opposes motion)
-* Slipstream multiplier supported
-
----
-
-# 🌀 Slipstream Model
-
-Defined in 
-
-Models aerodynamic wake behind a leading vehicle.
-
-Conditions:
-
-* Follower must be behind leader
-* Inside wake cone
-* Within wake length
-
-Drag multiplier:
-
-[
-m_{drag} = 1 - k_{drag} e^{-\lambda d}
-]
-
-Downforce multiplier:
-
-[
-m_{downforce} = 1 - k_{downforce} e^{-\lambda d}
-]
-
-Effect:
-
-* Reduced drag (higher top speed)
-* Reduced downforce (less grip)
-
----
-
-# 🚗 Dynamic Bicycle Model
-
-Defined in 
-
-## Steering Actuator
-
-First-order lag:
-
-[
-\dot{\delta} = \frac{\delta_{cmd} - \delta}{\tau}
-]
 
 ---
 
 ## Slip Angles
 
-[
-\alpha_f = \arctan\left(\frac{v_y + l_f r}{v_x}\right) - \delta
-]
+Front and rear slip angles:
 
-[
+$$
+\alpha_f = \arctan\left(\frac{v_y + l_f r}{v_x}\right) - \delta
+$$
+
+$$
 \alpha_r = \arctan\left(\frac{v_y - l_r r}{v_x}\right)
-]
+$$
 
 ---
 
-## Tire Forces (Linear)
+## Linear Tire Model
 
-[
+$$
 F_{yf} = -C_f \alpha_f
-]
+$$
 
-[
+$$
 F_{yr} = -C_r \alpha_r
-]
+$$
 
 ---
 
 ## Longitudinal Force
 
-[
+The total longitudinal force is:
+
+$$
 F_x = F_{engine} - F_{drag}
-]
+$$
 
 ---
 
-## Equations of Motion
+## Engine Model
 
-Body frame:
+Deterministic throttle/brake model:
 
-[
-\dot{v_x} = \frac{F_x - F_{yf}\sin\delta}{m} + v_y r
-]
+$$
+F_{engine} =
+\text{throttle} \cdot F_{max} \cdot \eta
+----------------------------------------
 
-[
-\dot{v_y} = \frac{F_{yf}\cos\delta + F_{yr}}{m} - v_x r
-]
+\text{brake} \cdot F_{brake}
+$$
 
-[
+No torque curve or traction limits are modeled.
+
+---
+
+## Aerodynamic Drag
+
+Quadratic drag:
+
+$$
+F_{drag} = \frac{1}{2} \rho C_d A ; v_x |v_x|
+$$
+
+Optionally scaled by slipstream multiplier.
+
+---
+
+## Dynamic Equations of Motion
+
+Body-frame equations:
+
+$$
+\dot{v}*x = \frac{F_x - F*{yf}\sin\delta}{m} + v_y r
+$$
+
+$$
+\dot{v}*y = \frac{F*{yf}\cos\delta + F_{yr}}{m} - v_x r
+$$
+
+$$
 \dot{r} = \frac{l_f F_{yf}\cos\delta - l_r F_{yr}}{I_z}
-]
+$$
 
 ---
 
-## Global Integration
+## Global Position Integration
 
-[
-\dot{x} = v_x \cos\psi - v_y \sin\psi
-]
+$$
+\dot{x} = v_x \cos(\psi) - v_y \sin(\psi)
+$$
 
-[
-\dot{y} = v_x \sin\psi + v_y \cos\psi
-]
+$$
+\dot{y} = v_x \sin(\psi) + v_y \cos(\psi)
+$$
 
-[
+$$
 \dot{\psi} = r
-]
-
-Integrated with forward Euler:
-
-[
-x_{k+1} = x_k + \dot{x} dt
-]
+$$
 
 ---
 
-# 🧮 Linearization
+# Slipstream Model
 
-Defined in 
+The slipstream model reduces:
 
-Finite-difference Jacobians:
+* Aerodynamic drag
+* Downforce-dependent tire forces
 
-[
-A = \frac{\partial f}{\partial x}
-\quad
-B = \frac{\partial f}{\partial u}
-]
+If a follower is inside a wake cone behind a leader:
 
-Returns:
+$$
+drag_multiplier = 1 - D_{max} e^{-k d}
+$$
 
-```
-A ∈ R^{8×8}
-B ∈ R^{8×3}
-```
+$$
+downforce_multiplier = 1 - L_{max} e^{-k d}
+$$
 
-Useful for:
+Where:
 
-* LQR
-* MPC
-* Control analysis
+* ( d ) = longitudinal distance
+* ( k ) = decay rate
 
 ---
 
-# 🏭 Vehicle Presets
+# Steering Actuator
 
-Defined in 
+First-order lag model:
 
-Available presets:
+$$
+\dot{\delta} = \frac{\delta_{cmd} - \delta}{\tau}
+$$
+
+---
+
+# Linearization
+
+The system supports numerical linearization:
+
+$$
+x_{k+1} = A x_k + B u_k
+$$
+
+Jacobian matrices are computed using finite differences.
+
+File:
+
+```
+linearization.py
+```
+
+---
+
+# Vehicle Presets
+
+Factory system provides presets:
 
 * `dynamic_default`
 * `dynamic_gt3`
@@ -294,106 +217,111 @@ Example:
 ```python
 from rc_racer_vehicle_model.vehicle_factory import VehicleFactory
 
-vehicle = VehicleFactory.create_dynamic("dynamic_default")
+vehicle = VehicleFactory.create_dynamic("dynamic_gt3")
 ```
 
 ---
 
-# 🌐 REST API
+# FastAPI Simulation Server
 
-Defined in 
-
-Start server:
+Start API:
 
 ```bash
-uv run uvicorn rc_racer_vehicle_model.vehicle_api:app --reload
+uvicorn rc_racer_vehicle_model.vehicle_api:app --reload
 ```
 
-### Endpoints
+Endpoints:
 
-### GET `/vehicle_list`
+### List Vehicles
 
-Lists available presets.
+```
+GET /vehicle_list
+```
 
-### POST `/start`
+### Start Simulation
 
-Initialize simulation.
-
-```json
+```
+POST /start
 {
-  "vehicle_name": "dynamic_default"
+    "vehicle_name": "dynamic_default"
 }
 ```
 
-### POST `/step`
+### Step Simulation
 
-```json
+```
+POST /step
 {
-  "throttle": 0.8,
-  "brake": 0.0,
-  "steering": 0.1,
-  "dt": 0.01
+    "throttle": 1.0,
+    "brake": 0.0,
+    "steering": 0.1,
+    "dt": 0.01
 }
 ```
-
-Returns updated vehicle state.
 
 ---
 
-# 🎯 Use Cases
+# Determinism
 
-* Reinforcement Learning
-* MPC / LQR control
+The entire model is:
+
+* Fully deterministic
+* No randomness
+* No hidden state
+* Fully reproducible
+
+Suitable for:
+
+* RL research
+* MPC development
+* Trajectory optimization
+* System identification
+
+---
+
+# Docker
+
+Build:
+
+```bash
+docker build -t rc-racer .
+```
+
+Run:
+
+```bash
+docker run -p 8000:8000 rc-racer
+```
+
+---
+
+# Design Philosophy
+
+This model intentionally avoids:
+
+* Magic constants
+* Hidden saturation
+* Black-box physics
+* Non-deterministic components
+
+Everything is explicit and inspectable.
+
+---
+
+# Future Extensions
+
+* Nonlinear tire model (Pacejka)
+* Combined slip
+* Load transfer
+* Suspension model
+* Track coordinate frame
 * Multi-agent racing
-* Slipstream strategy research
-* Deterministic simulation for competitions
+* GPU vectorization
 
 ---
 
-# ⚙️ Design Philosophy
+# License
 
-* Deterministic core
-* No hidden randomness
-* Clean separation of:
-
-  * Engine
-  * Aero
-  * Slipstream
-  * Dynamics
-* Linearization-ready
-* API-ready
+MIT License
 
 ---
-
-# 📌 Key Properties
-
-| Feature         | Supported |
-| --------------- | --------- |
-| Dynamic bicycle | ✅         |
-| Steering lag    | ✅         |
-| Aero drag       | ✅         |
-| Slipstream      | ✅         |
-| Linearization   | ✅         |
-| REST API        | ✅         |
-| Deterministic   | ✅         |
-
----
-
-# 🏁 Summary
-
-This project provides a **research-grade deterministic racing vehicle model** suitable for:
-
-* Control design
-* AI training
-* Competitive racing simulation
-* Drafting strategy modeling
-
-It balances physical realism with computational efficiency.
-
-If you'd like, I can also generate:
-
-* A math-only PDF documentation
-* A diagram of the model structure
-* An MPC example
-* A comparison to kinematic bicycle models
-* A multi-vehicle simulation example
